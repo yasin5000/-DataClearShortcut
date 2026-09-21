@@ -192,6 +192,7 @@ class FloatingToolbarService : Service() {
         val clearBtn = styledButton("⌫  Clear Data", Color.parseColor("#D32F2F"))
         val openBtn = styledButton("↗  Open")
         val plusBtn = styledButton("＋  Add App")
+        val resetBtn = styledButton("↺  Reset", Color.parseColor("#EF6C00"))
 
         val extras = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -209,6 +210,10 @@ class FloatingToolbarService : Service() {
         )
         panel.addView(
             plusBtn,
+            LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(2) }
+        )
+        panel.addView(
+            resetBtn,
             LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(2) }
         )
         panel.addView(extras, LinearLayout.LayoutParams(-1, -2))
@@ -264,6 +269,9 @@ class FloatingToolbarService : Service() {
                 Intent(this, AppPickerActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
+        }
+        resetBtn.setOnClickListener {
+            ClearHelper.resetNetworkAuto(this)
         }
         toggleTab.setOnClickListener {
             val nowVisible = panel.visibility == View.VISIBLE
