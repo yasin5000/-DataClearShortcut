@@ -4,10 +4,14 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
@@ -17,6 +21,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.math.abs
 
 /**
@@ -41,9 +46,21 @@ class FloatingToolbarService : Service() {
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
     private lateinit var params: WindowManager.LayoutParams
+    private var extraContainer: LinearLayout? = null
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private val prefs by lazy { getSharedPreferences("prefs", MODE_PRIVATE) }
+
+    private fun loadExtraPkgs(): List<String> =
+        (prefs.getString(AppPickerActivity.PREF_EXTRA_PKGS, "") ?: "")
+            .split(",")
+            .filter { it.isNotBlank() }
+
+    private val extraAppsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            rebuildExtraButtons()
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,6 +70,13 @@ class FloatingToolbarService : Service() {
         startForegroundNotif()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         addOverlay()
+        val filter = IntentFilter(AppPickerActivity.ACTION_EXTRA_APPS_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(extraAppsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(extraAppsReceiver, filter)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -137,10 +161,38 @@ class FloatingToolbarService : Service() {
             setBackgroundColor(Color.parseColor("#1565C0"))
             setPadding(dp(14), dp(6), dp(14), dp(6))
         }
+        val plusBtn = Button(this).apply {
+            text = "+"
+            textSize = 14f
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#2E7D32"))
+            setPadding(dp(14), dp(4), dp(14), dp(4))
+        }
+
+        // Open button + "+" button ek row e paashapashi
+        val openRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        openRow.addView(
+            openBtn,
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        openRow.addView(
+            plusBtn,
+            LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(4) }
+        )
+
+        // Extra select kora app-gulor jonno "Open 1", "Open 2"... button ekhane boshbe
+        val extras = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        extraContainer = extras
 
         container.addView(grip, LinearLayout.LayoutParams(-1, -2))
         container.addView(clearBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
-        container.addView(openBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        container.addView(openRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        container.addView(extras, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
 
         // Sudhu grip-e touch kore drag kora jabe, button-e shudhu click kaj korbe
         var downRawX = 0f
@@ -181,9 +233,85 @@ class FloatingToolbarService : Service() {
             val pkg = prefs.getString("pkg", null)
             if (pkg != null) ClearHelper.openApp(this, pkg)
         }
+        plusBtn.setOnClickListener {
+            startActivity(
+                Intent(this, AppPickerActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
 
         overlayView = container
         windowManager.addView(container, params)
+        rebuildExtraButtons()
+    }
+
+    /**
+     * "+" diye add kora extra app ba telegram username-gulor jonno
+     * "Open N" / "Chat N" button notun kore banay. Long-press korle
+     * remove hoye jabe.
+     */
+    private fun rebuildExtraButtons() {
+        val extras = extraContainer ?: return
+        extras.removeAllViews()
+
+        val entries = loadExtraPkgs()
+        var openCount = 0
+        var chatCount = 0
+
+        entries.forEach { entry ->
+            val btn = Button(this).apply {
+                textSize = 12f
+                isAllCaps = false
+                setTextColor(Color.WHITE)
+                setPadding(dp(14), dp(6), dp(14), dp(6))
+                setOnLongClickListener {
+                    removeExtraPkg(entry)
+                    true
+                }
+            }
+
+            if (entry.startsWith("tg:")) {
+                chatCount++
+                val username = entry.removePrefix("tg:")
+                btn.text = "Chat $chatCount"
+                btn.setBackgroundColor(Color.parseColor("#0088CC"))
+                btn.setOnClickListener { openTelegramChat(username) }
+            } else {
+                openCount++
+                btn.text = "Open $openCount"
+                btn.setBackgroundColor(Color.parseColor("#6A1B9A"))
+                btn.setOnClickListener { ClearHelper.openApp(this@FloatingToolbarService, entry) }
+            }
+
+            extras.addView(
+                btn,
+                LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) }
+            )
+        }
+
+        overlayView?.let { windowManager.updateViewLayout(it, params) }
+    }
+
+    private fun openTelegramChat(username: String) {
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=$username"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            // Telegram app deep-link handle na korle, browser/t.me fallback
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/$username"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    private fun removeExtraPkg(pkg: String) {
+        val remaining = loadExtraPkgs().filter { it != pkg }
+        prefs.edit().putString(AppPickerActivity.PREF_EXTRA_PKGS, remaining.joinToString(",")).apply()
+        Toast.makeText(this, "Toolbar theke remove kora hoyeche", Toast.LENGTH_SHORT).show()
+        rebuildExtraButtons()
     }
 
     override fun onDestroy() {
@@ -197,5 +325,10 @@ class FloatingToolbarService : Service() {
             }
         }
         overlayView = null
+        try {
+            unregisterReceiver(extraAppsReceiver)
+        } catch (e: Exception) {
+            // already unregistered
+        }
     }
 }
