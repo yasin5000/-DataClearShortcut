@@ -184,11 +184,11 @@ class AutoClearService : AccessibilityService() {
             return
         }
 
-        if (clickWords(root, RESET_OPTIONS_WORDS, exact = false)) {
+        if (clickWords(root, RESET_OPTIONS_WORDS, exact = true)) {
             return
         }
 
-        if (resetStep == RESET_STEP_ENTRY && clickWords(root, RESET_ENTRY_WORDS, exact = false)) {
+        if (resetStep == RESET_STEP_ENTRY && clickWords(root, RESET_ENTRY_WORDS, exact = true)) {
             return
         }
     }
