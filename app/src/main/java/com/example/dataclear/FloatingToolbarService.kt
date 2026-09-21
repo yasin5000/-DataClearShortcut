@@ -47,6 +47,7 @@ class FloatingToolbarService : Service() {
     private var overlayView: View? = null
     private lateinit var params: WindowManager.LayoutParams
     private var extraContainer: LinearLayout? = null
+    private var contentContainer: LinearLayout? = null
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private val prefs by lazy { getSharedPreferences("prefs", MODE_PRIVATE) }
@@ -136,7 +137,7 @@ class FloatingToolbarService : Service() {
             setBackgroundColor(Color.parseColor("#DD212121"))
         }
 
-        // Drag korar jonno grip (upore, choto strip)
+        // Drag korar jonno grip (upore, choto strip) + minimize/expand toggle
         val grip = TextView(this).apply {
             text = "⋮⋮"
             textSize = 14f
@@ -144,6 +145,19 @@ class FloatingToolbarService : Service() {
             gravity = Gravity.CENTER
             setPadding(0, dp(2), 0, dp(4))
         }
+        val toggleBtn = TextView(this).apply {
+            text = "▾"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(2), dp(10), dp(4))
+        }
+        val gripRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        gripRow.addView(grip, LinearLayout.LayoutParams(0, -2, 1f))
+        gripRow.addView(toggleBtn, LinearLayout.LayoutParams(-2, -2))
 
         val clearBtn = Button(this).apply {
             text = "Clear"
@@ -189,10 +203,21 @@ class FloatingToolbarService : Service() {
         }
         extraContainer = extras
 
-        container.addView(grip, LinearLayout.LayoutParams(-1, -2))
-        container.addView(clearBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
-        container.addView(openRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
-        container.addView(extras, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
+        // Clear/Open/+/extras shob eki jaygay - eta minimize korle hide hoye jabe
+        val contentContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        contentContainer.addView(clearBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
+        contentContainer.addView(openRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        contentContainer.addView(extras, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
+        this.contentContainer = contentContainer
+
+        val startCollapsed = prefs.getBoolean("toolbar_collapsed", false)
+        contentContainer.visibility = if (startCollapsed) View.GONE else View.VISIBLE
+        toggleBtn.text = if (startCollapsed) "▸" else "▾"
+
+        container.addView(gripRow, LinearLayout.LayoutParams(-1, -2))
+        container.addView(contentContainer, LinearLayout.LayoutParams(-1, -2))
 
         // Sudhu grip-e touch kore drag kora jabe, button-e shudhu click kaj korbe
         var downRawX = 0f
@@ -238,6 +263,13 @@ class FloatingToolbarService : Service() {
                 Intent(this, AppPickerActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
+        }
+        toggleBtn.setOnClickListener {
+            val nowCollapsed = contentContainer.visibility == View.VISIBLE
+            contentContainer.visibility = if (nowCollapsed) View.GONE else View.VISIBLE
+            toggleBtn.text = if (nowCollapsed) "▸" else "▾"
+            prefs.edit().putBoolean("toolbar_collapsed", nowCollapsed).apply()
+            windowManager.updateViewLayout(container, params)
         }
 
         overlayView = container
