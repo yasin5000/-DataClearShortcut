@@ -105,7 +105,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(8) }
         )
 
-        val hint = TextView(this).apply {
+        val hintText = TextView(this).apply {
             text = "Niche theke app select koro (chepe rakhle App info khulbe)"
             textSize = 12f
             setPadding(dp(4), dp(8), dp(4), 0)
@@ -118,7 +118,7 @@ class MainActivity : Activity() {
 
         root.addView(banner, LinearLayout.LayoutParams(-1, -2))
         root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        root.addView(hint, LinearLayout.LayoutParams(-1, -2))
+        root.addView(hintText, LinearLayout.LayoutParams(-1, -2))
         root.addView(search, LinearLayout.LayoutParams(-1, -2))
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
