@@ -25,6 +25,27 @@ object ClearHelper {
         openAppInfo(context, pkg)
     }
 
+    // Settings khule automatic "Reset network settings" > "Reset settings" chape.
+    // Sheshe lock/PIN cheye thakle sheita user nijei diye confirm korbe.
+    fun resetNetworkAuto(context: Context) {
+        if (AutoClearService.instance == null) {
+            Toast.makeText(context, "Age Accessibility-te 'Data Clear Auto' on koro", Toast.LENGTH_LONG).show()
+            context.startActivity(
+                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            return
+        }
+        AutoClearService.startNetworkReset()
+        try {
+            context.startActivity(
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            Toast.makeText(context, "Settings khola gelo na", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun openAppInfo(context: Context, pkg: String) {
         try {
             context.startActivity(
