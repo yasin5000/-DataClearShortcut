@@ -61,7 +61,10 @@ class AutoClearService : AccessibilityService() {
                 return
             }
             val root = rootInActiveWindow
-            if (root != null && isSettingsWindow(root.packageName?.toString())) {
+            // Kono package filter na kore je window e ase sheta i process kori,
+            // karon kichu phone-e ei confirm dialog ta alada package (jemon MIUI
+            // security center) theke ashe, "settings" word thake na.
+            if (root != null) {
                 process(root)
             }
             if (pkg != null) handler.postDelayed(this, TICK_MS)
