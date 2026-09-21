@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -22,17 +23,11 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import kotlin.math.abs
 
 /**
- * Home screen-er upore vashman (floating) ekta choto toolbar dekhay,
- * jate bar bar app khule kaj korte na hoy.
- *
- * Duita button:
- *  - Clear : MainActivity theke selected app-er DATA clear kore (auto-clear flow)
- *  - Open  : Selected app-take shorashori open kore dey
- *
- * Upore ekta grip (::) diye toolbar-take drag kore jekhane khushi rakha jay.
+ * Home screen-er upore vashman (floating) ekta premium-style choto toolbar.
+ * Ekpashe choto arrow tab (‹ ›) diye pura panel show/hide kora jay,
+ * ar ekta rounded semi-transparent shada panel e shob button thake.
  */
 class FloatingToolbarService : Service() {
 
@@ -47,7 +42,6 @@ class FloatingToolbarService : Service() {
     private var overlayView: View? = null
     private lateinit var params: WindowManager.LayoutParams
     private var extraContainer: LinearLayout? = null
-    private var contentContainer: LinearLayout? = null
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private val prefs by lazy { getSharedPreferences("prefs", MODE_PRIVATE) }
@@ -113,6 +107,24 @@ class FloatingToolbarService : Service() {
         }
     }
 
+    /** Demo design-er moto flat, rounded, left-aligned tool button banay. */
+    private fun styledButton(labelText: String, textColor: Int = Color.parseColor("#1C1C1E")): Button {
+        return Button(this).apply {
+            text = labelText
+            textSize = 12f
+            isAllCaps = false
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            setTextColor(textColor)
+            setPadding(dp(10), 0, dp(6), 0)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#F5F5F7"))
+                cornerRadius = dp(9).toFloat()
+            }
+            stateListAnimator = null
+            elevation = 0f
+        }
+    }
+
     private fun addOverlay() {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -128,98 +140,87 @@ class FloatingToolbarService : Service() {
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = prefs.getInt("float_x", 0)
-        params.y = prefs.getInt("float_y", dp(200))
+
+        // Default: right edge, vertically centered (demo-r moto). Age kokhono
+        // drag kore rakhle sheita mone thakbe.
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        params.x = prefs.getInt("float_x", screenW - dp(165))
+        params.y = prefs.getInt("float_y", screenH / 2 - dp(110))
 
         val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(4), dp(4), dp(4), dp(4))
-            setBackgroundColor(Color.parseColor("#DD212121"))
-        }
-
-        // Drag korar jonno grip (upore, choto strip) + minimize/expand toggle
-        val grip = TextView(this).apply {
-            text = "⋮⋮"
-            textSize = 14f
-            setTextColor(Color.parseColor("#BDBDBD"))
-            gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(4))
-        }
-        val toggleBtn = TextView(this).apply {
-            text = "▾"
-            textSize = 16f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(10), dp(2), dp(10), dp(4))
-        }
-        val gripRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        gripRow.addView(grip, LinearLayout.LayoutParams(0, -2, 1f))
-        gripRow.addView(toggleBtn, LinearLayout.LayoutParams(-2, -2))
 
-        val clearBtn = Button(this).apply {
-            text = "Clear"
+        // Choto premium arrow tab - eta chaple pura panel show/hide hoy
+        val toggleTab = TextView(this).apply {
+            text = "‹"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#EB141419"))
+                cornerRadii = floatArrayOf(
+                    dp(10).toFloat(), dp(10).toFloat(),
+                    0f, 0f,
+                    0f, 0f,
+                    dp(10).toFloat(), dp(10).toFloat()
+                )
+            }
+        }
+
+        // Rounded, semi-transparent shada panel
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(7), dp(7), dp(7), dp(7))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#E0FFFFFF"))
+                cornerRadius = dp(15).toFloat()
+            }
+        }
+
+        // Drag korar jonno choto grip, panel-er upore
+        val grip = TextView(this).apply {
+            text = "⋮⋮"
             textSize = 12f
-            isAllCaps = false
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#D32F2F"))
-            setPadding(dp(14), dp(6), dp(14), dp(6))
-        }
-        val openBtn = Button(this).apply {
-            text = "Open"
-            textSize = 12f
-            isAllCaps = false
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#1565C0"))
-            setPadding(dp(14), dp(6), dp(14), dp(6))
-        }
-        val plusBtn = Button(this).apply {
-            text = "+"
-            textSize = 14f
-            isAllCaps = false
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#2E7D32"))
-            setPadding(dp(14), dp(4), dp(14), dp(4))
+            setTextColor(Color.parseColor("#9E9E9E"))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(4))
         }
 
-        // Open button + "+" button ek row e paashapashi
-        val openRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-        openRow.addView(
-            openBtn,
-            LinearLayout.LayoutParams(0, -2, 1f)
-        )
-        openRow.addView(
-            plusBtn,
-            LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(4) }
-        )
+        val clearBtn = styledButton("⌫  Clear Data", Color.parseColor("#D32F2F"))
+        val openBtn = styledButton("↗  Open")
+        val plusBtn = styledButton("＋  Add App")
 
-        // Extra select kora app-gulor jonno "Open 1", "Open 2"... button ekhane boshbe
         val extras = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
         extraContainer = extras
 
-        // Clear/Open/+/extras shob eki jaygay - eta minimize korle hide hoye jabe
-        val contentContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        contentContainer.addView(clearBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
-        contentContainer.addView(openRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
-        contentContainer.addView(extras, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
-        this.contentContainer = contentContainer
+        panel.addView(grip, LinearLayout.LayoutParams(-1, -2))
+        panel.addView(
+            clearBtn,
+            LinearLayout.LayoutParams(-1, dp(32)).apply { topMargin = dp(2); bottomMargin = dp(2) }
+        )
+        panel.addView(
+            openBtn,
+            LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(2) }
+        )
+        panel.addView(
+            plusBtn,
+            LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(2) }
+        )
+        panel.addView(extras, LinearLayout.LayoutParams(-1, -2))
 
         val startCollapsed = prefs.getBoolean("toolbar_collapsed", false)
-        contentContainer.visibility = if (startCollapsed) View.GONE else View.VISIBLE
-        toggleBtn.text = if (startCollapsed) "▸" else "▾"
+        panel.visibility = if (startCollapsed) View.GONE else View.VISIBLE
+        toggleTab.text = if (startCollapsed) "›" else "‹"
 
-        container.addView(gripRow, LinearLayout.LayoutParams(-1, -2))
-        container.addView(contentContainer, LinearLayout.LayoutParams(-1, -2))
+        container.addView(toggleTab, LinearLayout.LayoutParams(dp(22), dp(40)))
+        container.addView(panel, LinearLayout.LayoutParams(dp(130), LinearLayout.LayoutParams.WRAP_CONTENT))
 
-        // Sudhu grip-e touch kore drag kora jabe, button-e shudhu click kaj korbe
+        // Sudhu grip-e touch kore drag kora jabe
         var downRawX = 0f
         var downRawY = 0f
         var downParamX = 0
@@ -264,11 +265,11 @@ class FloatingToolbarService : Service() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
-        toggleBtn.setOnClickListener {
-            val nowCollapsed = contentContainer.visibility == View.VISIBLE
-            contentContainer.visibility = if (nowCollapsed) View.GONE else View.VISIBLE
-            toggleBtn.text = if (nowCollapsed) "▸" else "▾"
-            prefs.edit().putBoolean("toolbar_collapsed", nowCollapsed).apply()
+        toggleTab.setOnClickListener {
+            val nowVisible = panel.visibility == View.VISIBLE
+            panel.visibility = if (nowVisible) View.GONE else View.VISIBLE
+            toggleTab.text = if (nowVisible) "›" else "‹"
+            prefs.edit().putBoolean("toolbar_collapsed", nowVisible).apply()
             windowManager.updateViewLayout(container, params)
         }
 
@@ -279,8 +280,8 @@ class FloatingToolbarService : Service() {
 
     /**
      * "+" diye add kora extra app ba telegram username-gulor jonno
-     * "Open N" / "Chat N" button notun kore banay. Long-press korle
-     * remove hoye jabe.
+     * "Open N" / "Chat N" button notun kore banay, demo-r style-e.
+     * Long-press korle remove hoye jabe.
      */
     private fun rebuildExtraButtons() {
         val extras = extraContainer ?: return
@@ -291,33 +292,36 @@ class FloatingToolbarService : Service() {
         var chatCount = 0
 
         entries.forEach { entry ->
-            val btn = Button(this).apply {
-                textSize = 12f
-                isAllCaps = false
-                setTextColor(Color.WHITE)
-                setPadding(dp(14), dp(6), dp(14), dp(6))
+            val label: String
+            val color: Int
+            val isTg = entry.startsWith("tg:")
+
+            if (isTg) {
+                chatCount++
+                label = "✈  Chat $chatCount"
+                color = Color.parseColor("#0088CC")
+            } else {
+                openCount++
+                label = "▸  Open $openCount"
+                color = Color.parseColor("#6A1B9A")
+            }
+
+            val btn = styledButton(label, color).apply {
                 setOnLongClickListener {
                     removeExtraPkg(entry)
                     true
                 }
-            }
-
-            if (entry.startsWith("tg:")) {
-                chatCount++
-                val username = entry.removePrefix("tg:")
-                btn.text = "Chat $chatCount"
-                btn.setBackgroundColor(Color.parseColor("#0088CC"))
-                btn.setOnClickListener { openTelegramChat(username) }
-            } else {
-                openCount++
-                btn.text = "Open $openCount"
-                btn.setBackgroundColor(Color.parseColor("#6A1B9A"))
-                btn.setOnClickListener { ClearHelper.openApp(this@FloatingToolbarService, entry) }
+                if (isTg) {
+                    val username = entry.removePrefix("tg:")
+                    setOnClickListener { openTelegramChat(username) }
+                } else {
+                    setOnClickListener { ClearHelper.openApp(this@FloatingToolbarService, entry) }
+                }
             }
 
             extras.addView(
                 btn,
-                LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) }
+                LinearLayout.LayoutParams(-1, dp(32)).apply { topMargin = dp(2) }
             )
         }
 
