@@ -145,7 +145,11 @@ class FloatingToolbarService : Service() {
         // drag kore rakhle sheita mone thakbe.
         val screenW = resources.displayMetrics.widthPixels
         val screenH = resources.displayMetrics.heightPixels
-        params.x = prefs.getInt("float_x", screenW - dp(165))
+        val dockedRight = prefs.getBoolean("toolbar_docked_right", true)
+        val startCollapsedForX = prefs.getBoolean("toolbar_collapsed", false)
+        val startWidth = if (startCollapsedForX) dp(22) else dp(22) + dp(130)
+        val defaultX = if (dockedRight) screenW - startWidth else 0
+        params.x = prefs.getInt("float_x", defaultX)
         params.y = prefs.getInt("float_y", screenH / 2 - dp(110))
 
         val container = LinearLayout(this).apply {
@@ -225,6 +229,15 @@ class FloatingToolbarService : Service() {
         container.addView(toggleTab, LinearLayout.LayoutParams(dp(22), dp(40)))
         container.addView(panel, LinearLayout.LayoutParams(dp(130), LinearLayout.LayoutParams.WRAP_CONTENT))
 
+        // Panel show/hide korar shomoy dock kora edge (left/right) e flush kore rakhe
+        fun snapToEdge(collapsed: Boolean) {
+            val docked = prefs.getBoolean("toolbar_docked_right", true)
+            val w = if (collapsed) dp(22) else dp(22) + dp(130)
+            params.x = if (docked) resources.displayMetrics.widthPixels - w else 0
+            windowManager.updateViewLayout(container, params)
+            prefs.edit().putInt("float_x", params.x).apply()
+        }
+
         // Sudhu grip-e touch kore drag kora jabe
         var downRawX = 0f
         var downRawY = 0f
@@ -249,7 +262,13 @@ class FloatingToolbarService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    prefs.edit().putInt("float_x", params.x).putInt("float_y", params.y).apply()
+                    // Chere deoar por kachakachi edge-e (left ba right) flush kore snap kore fela
+                    val curW = if (panel.visibility == View.GONE) dp(22) else dp(22) + dp(130)
+                    val center = params.x + curW / 2
+                    val dockRight = center >= resources.displayMetrics.widthPixels / 2
+                    prefs.edit().putBoolean("toolbar_docked_right", dockRight).apply()
+                    prefs.edit().putInt("float_y", params.y).apply()
+                    snapToEdge(panel.visibility == View.GONE)
                     true
                 }
                 else -> false
@@ -278,7 +297,7 @@ class FloatingToolbarService : Service() {
             panel.visibility = if (nowVisible) View.GONE else View.VISIBLE
             toggleTab.text = if (nowVisible) "›" else "‹"
             prefs.edit().putBoolean("toolbar_collapsed", nowVisible).apply()
-            windowManager.updateViewLayout(container, params)
+            snapToEdge(nowVisible)
         }
 
         overlayView = container
