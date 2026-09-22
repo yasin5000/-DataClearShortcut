@@ -42,7 +42,7 @@ class AutoClearService : AccessibilityService() {
         private const val RESET_STEP_TARGET = 1
 
         private const val TIMEOUT_MS = 15_000L
-        private const val RESET_TIMEOUT_MS = 25_000L
+        private const val RESET_TIMEOUT_MS = 90_000L
         private const val TICK_MS = 350L
 
         // "Clear data" button
@@ -82,7 +82,7 @@ class AutoClearService : AccessibilityService() {
         // Root Settings-e reset-er dike jawar entry point
         private val RESET_ENTRY_WORDS = listOf(
             "system", "additional settings", "general management",
-            "about phone", "সিস্টেম", "অতিরিক্ত সেটিংস"
+            "system management", "about phone", "সিস্টেম", "অতিরিক্ত সেটিংস"
         )
     }
 
