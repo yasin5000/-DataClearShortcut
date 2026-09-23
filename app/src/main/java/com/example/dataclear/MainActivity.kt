@@ -3,6 +3,7 @@ package com.example.dataclear
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
@@ -34,6 +35,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQ_PICK_IMAGE = 501
+        private const val REQ_STORAGE_PERM = 502
     }
 
     private var allApps: List<AppItem> = emptyList()
@@ -200,6 +202,18 @@ class MainActivity : Activity() {
             Toast.makeText(this, "Floating toolbar theke Upload button shore gelo", Toast.LENGTH_SHORT).show()
             return
         }
+        // Purono Android (10-er niche) e Downloads-e file likhte hole
+        // WRITE_EXTERNAL_STORAGE permission runtime-e chaite hoy
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), REQ_STORAGE_PERM)
+            return
+        }
+        launchImagePicker()
+    }
+
+    private fun launchImagePicker() {
         // On korar age ekta image select korte hobe
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             type = "image/*"
@@ -209,6 +223,25 @@ class MainActivity : Activity() {
             startActivityForResult(intent, REQ_PICK_IMAGE)
         } catch (e: Exception) {
             Toast.makeText(this, "Image picker khola gelo na", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_STORAGE_PERM) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                launchImagePicker()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Storage permission na dile ei phone-e image save kora jabe na",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
