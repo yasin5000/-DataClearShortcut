@@ -97,7 +97,9 @@ class AutoClearService : AccessibilityService() {
 
         // File-picker-e "Files"/"Browse"/"Downloads" tab-e switch korar jonno
         private val UPLOAD_TAB_WORDS = listOf(
-            "files", "browse", "downloads", "internal storage", "ফাইল"
+            "files", "browse", "browse other apps", "downloads", "download",
+            "internal storage", "show roots", "show internal storage",
+            "ফাইল", "ডাউনলোড"
         )
 
         // File select howar por "Select"/"Open"/"Done" moto confirm button
@@ -246,11 +248,24 @@ class AutoClearService : AccessibilityService() {
         clickWords(root, UPLOAD_TAB_WORDS, exact = false)
     }
 
+    // Onek button/thumbnail-e (jemon image picker-er photo grid) visible "text"
+    // thake na - label ta sudhu "content description"-e thake (screen-e dekha
+    // jay na, khali accessibility-r jonno). Age sudhu n.text dekhto, tai oi
+    // node-gulo shob shomoy skip hoye jeto - eijonyoi image select hoto na.
+    private fun nodeLabel(n: AccessibilityNodeInfo): String? =
+        (n.text?.toString() ?: n.contentDescription?.toString())?.trim()?.lowercase()
+
     private fun clickWords(root: AccessibilityNodeInfo, words: List<String>, exact: Boolean): Boolean {
+        val lowerWords = words.map { it.lowercase() }
         for (n in findNodes(root, words)) {
-            val t = n.text?.toString()?.trim()?.lowercase() ?: continue
-            val matches = if (exact) t in words.map { it.lowercase() }
-                else words.any { t.contains(it.lowercase()) }
+            val t = nodeLabel(n) ?: continue
+            // "exact" e-o full equality chara, "filename, image, 245 KB" moto
+            // extra info jog kora thakle shetao match hobe (starts-with check).
+            val matches = if (exact) {
+                lowerWords.any { w -> t == w || t.startsWith("$w,") || t.startsWith("$w ") }
+            } else {
+                lowerWords.any { t.contains(it) }
+            }
             if (!matches) continue
             val c = clickableAncestor(n) ?: continue
             if (c.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
@@ -260,7 +275,7 @@ class AutoClearService : AccessibilityService() {
 
     private fun clickClearData(root: AccessibilityNodeInfo): Boolean {
         for (n in findNodes(root, CLEAR_WORDS)) {
-            val t = n.text?.toString()?.lowercase() ?: continue
+            val t = nodeLabel(n) ?: continue
             if (t.contains("cache")) continue
             if (CLEAR_WORDS.none { t.contains(it.lowercase()) }) continue
             val c = clickableAncestor(n) ?: continue
@@ -271,7 +286,7 @@ class AutoClearService : AccessibilityService() {
 
     private fun clickStorageRow(root: AccessibilityNodeInfo): Boolean {
         for (n in findNodes(root, STORAGE_WORDS)) {
-            val t = n.text?.toString()?.lowercase() ?: continue
+            val t = nodeLabel(n) ?: continue
             if (t.contains("clear") || t.contains("মুছ")) continue
             val c = clickableAncestor(n) ?: continue
             if (c.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
@@ -285,7 +300,7 @@ class AutoClearService : AccessibilityService() {
         if (b1 != null) return b1.performAction(AccessibilityNodeInfo.ACTION_CLICK)
 
         for (n in findNodes(root, CONFIRM_WORDS)) {
-            val t = n.text?.toString()?.trim()?.lowercase() ?: continue
+            val t = nodeLabel(n) ?: continue
             if (t !in CONFIRM_WORDS) continue
             val c = clickableAncestor(n) ?: continue
             if (c.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
