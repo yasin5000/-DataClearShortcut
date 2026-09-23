@@ -149,7 +149,7 @@ class FloatingToolbarService : Service() {
         val screenH = resources.displayMetrics.heightPixels
         val dockedRight = prefs.getBoolean("toolbar_docked_right", true)
         val startCollapsedForX = prefs.getBoolean("toolbar_collapsed", false)
-        val startWidth = if (startCollapsedForX) dp(22) else dp(22) + dp(130)
+        val startWidth = if (startCollapsedForX) dp(36) else dp(36) + dp(130)
         val defaultX = if (dockedRight) screenW - startWidth else 0
         params.x = prefs.getInt("float_x", defaultX)
         params.y = prefs.getInt("float_y", screenH / 2 - dp(110))
@@ -159,20 +159,16 @@ class FloatingToolbarService : Service() {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        // Choto premium arrow tab - eta chaple pura panel show/hide hoy
+        // iPhone AssistiveTouch-er moto pura gol (circle) arrow button - eta chaple pura panel show/hide hoy
+        val toggleTabSize = dp(32)
         val toggleTab = TextView(this).apply {
             text = "‹"
             textSize = 15f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#EB141419"))
-                cornerRadii = floatArrayOf(
-                    dp(10).toFloat(), dp(10).toFloat(),
-                    0f, 0f,
-                    0f, 0f,
-                    dp(10).toFloat(), dp(10).toFloat()
-                )
             }
         }
 
@@ -236,13 +232,19 @@ class FloatingToolbarService : Service() {
         panel.visibility = if (startCollapsed) View.GONE else View.VISIBLE
         toggleTab.text = if (startCollapsed) "›" else "‹"
 
-        container.addView(toggleTab, LinearLayout.LayoutParams(dp(22), dp(40)))
+        container.addView(
+            toggleTab,
+            LinearLayout.LayoutParams(toggleTabSize, toggleTabSize).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                marginEnd = dp(4)
+            }
+        )
         container.addView(panel, LinearLayout.LayoutParams(dp(130), LinearLayout.LayoutParams.WRAP_CONTENT))
 
         // Panel show/hide korar shomoy dock kora edge (left/right) e flush kore rakhe
         fun snapToEdge(collapsed: Boolean) {
             val docked = prefs.getBoolean("toolbar_docked_right", true)
-            val w = if (collapsed) dp(22) else dp(22) + dp(130)
+            val w = if (collapsed) dp(36) else dp(36) + dp(130)
             params.x = if (docked) resources.displayMetrics.widthPixels - w else 0
             windowManager.updateViewLayout(container, params)
             prefs.edit().putInt("float_x", params.x).apply()
@@ -284,7 +286,7 @@ class FloatingToolbarService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     // Chere deoar por kachakachi edge-e (left ba right) flush kore snap kore fela
-                    val curW = if (panel.visibility == View.GONE) dp(22) else dp(22) + dp(130)
+                    val curW = if (panel.visibility == View.GONE) dp(36) else dp(36) + dp(130)
                     val center = params.x + curW / 2
                     val dockRight = center >= resources.displayMetrics.widthPixels / 2
                     prefs.edit().putBoolean("toolbar_docked_right", dockRight).apply()
