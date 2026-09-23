@@ -216,7 +216,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQ_PICK_IMAGE || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
-        val ok = saveUploadImage(uri)
+        val (ok, info) = saveUploadImage(uri)
         if (ok) {
             prefs.edit().putBoolean("upload_enabled", true).apply()
             Toast.makeText(
@@ -225,22 +225,20 @@ class MainActivity : Activity() {
                 Toast.LENGTH_LONG
             ).show()
         } else {
-            Toast.makeText(this, "Image save kora gelo na", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Save hoy nai: $info", Toast.LENGTH_LONG).show()
         }
         updateUploadButton()
     }
 
     // Select kora image-take public Downloads folder-e fixed naam diye copy kore,
     // jate AutoClearService file-picker-e oi naam khuje ber korte pare.
-    private fun saveUploadImage(sourceUri: Uri): Boolean {
+    private fun saveUploadImage(sourceUri: Uri): Pair<Boolean, String> {
         return try {
-            contentResolver.openInputStream(sourceUri)?.use { input ->
+            val input = contentResolver.openInputStream(sourceUri)
+                ?: return false to "Image file-ta porha gelo na (input stream null)"
+
+            input.use { ins ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val values = ContentValues().apply {
-                        put(MediaStore.Downloads.DISPLAY_NAME, AutoClearService.UPLOAD_FILE_NAME)
-                        put(MediaStore.Downloads.MIME_TYPE, "image/jpeg")
-                        put(MediaStore.Downloads.IS_PENDING, 1)
-                    }
                     val resolver = contentResolver
                     // Age purono thakle muche notun kore likhbo
                     resolver.delete(
@@ -248,9 +246,16 @@ class MainActivity : Activity() {
                         "${MediaStore.Downloads.DISPLAY_NAME}=?",
                         arrayOf(AutoClearService.UPLOAD_FILE_NAME)
                     )
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, AutoClearService.UPLOAD_FILE_NAME)
+                        put(MediaStore.Downloads.MIME_TYPE, "image/jpeg")
+                        put(MediaStore.Downloads.IS_PENDING, 1)
+                    }
                     val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                        ?: return false
-                    resolver.openOutputStream(uri)?.use { out -> input.copyTo(out) }
+                        ?: return false to "MediaStore-e notun entry toiri kora gelo na"
+                    val out = resolver.openOutputStream(uri)
+                        ?: return false to "Output stream khola gelo na"
+                    out.use { o -> ins.copyTo(o) }
                     values.clear()
                     values.put(MediaStore.Downloads.IS_PENDING, 0)
                     resolver.update(uri, values, null, null)
@@ -259,12 +264,12 @@ class MainActivity : Activity() {
                     val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                     dir.mkdirs()
                     val file = File(dir, AutoClearService.UPLOAD_FILE_NAME)
-                    FileOutputStream(file).use { out -> input.copyTo(out) }
+                    FileOutputStream(file).use { out -> ins.copyTo(out) }
                 }
-                true
-            } ?: false
+            }
+            true to "ok"
         } catch (e: Exception) {
-            false
+            false to "${e.javaClass.simpleName}: ${e.message}"
         }
     }
 
