@@ -8,11 +8,13 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
 /**
- * Duita automation job chalay:
+ * Tinta automation job chalay:
  *  1) Settings > App info > Storage > Clear data > OK  (clear app data)
  *  2) Settings > (System/Additional settings) > Reset options > Reset network
  *     settings > Reset settings  (network reset — sheshe lock/PIN cheye jodi
  *     asheo, sheita user nijei diye confirm korbe)
+ *  3) Kono app-er (jemon Chrome) file-picker e age theke bache rakha
+ *     "DataClearUpload.jpg" khuje click kore image auto-select kore dey
  *
  * Note: button-er lekha bhasha/phone company bhede alada hoy. Kaj na korle
  * nicher word list-e tomar phone-er lekha add koro (ba phone English-e rakho).
@@ -31,8 +33,13 @@ class AutoClearService : AccessibilityService() {
             instance?.beginNetworkReset()
         }
 
+        fun startImageUpload() {
+            instance?.beginImageUpload()
+        }
+
         private const val MODE_CLEAR = 0
         private const val MODE_RESET_NETWORK = 1
+        private const val MODE_UPLOAD_IMAGE = 2
 
         private const val STEP_STORAGE = 0
         private const val STEP_CLEAR = 1
@@ -43,7 +50,10 @@ class AutoClearService : AccessibilityService() {
 
         private const val TIMEOUT_MS = 15_000L
         private const val RESET_TIMEOUT_MS = 90_000L
+        private const val UPLOAD_TIMEOUT_MS = 30_000L
         private const val TICK_MS = 350L
+
+        const val UPLOAD_FILE_NAME = "DataClearUpload.jpg"
 
         // "Clear data" button
         private val CLEAR_WORDS = listOf(
@@ -84,6 +94,17 @@ class AutoClearService : AccessibilityService() {
             "system", "additional settings", "general management",
             "system management", "about phone", "সিস্টেম", "অতিরিক্ত সেটিংস"
         )
+
+        // File-picker-e "Files"/"Browse"/"Downloads" tab-e switch korar jonno
+        private val UPLOAD_TAB_WORDS = listOf(
+            "files", "browse", "downloads", "internal storage", "ফাইল"
+        )
+
+        // File select howar por "Select"/"Open"/"Done" moto confirm button
+        private val UPLOAD_CONFIRM_WORDS = listOf(
+            "select", "open", "done", "use this photo", "add", "attach", "ok",
+            "নির্বাচন", "ওপেন"
+        )
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -91,6 +112,7 @@ class AutoClearService : AccessibilityService() {
     private var mode = MODE_CLEAR
     private var step = STEP_STORAGE
     private var resetStep = RESET_STEP_ENTRY
+    private var uploadFileClicked = false
     private var deadline = 0L
     private var visitedStorage = false
     private var jobActive = false
@@ -99,10 +121,11 @@ class AutoClearService : AccessibilityService() {
         override fun run() {
             if (!jobActive) return
             if (System.currentTimeMillis() > deadline) {
-                val msg = if (mode == MODE_RESET_NETWORK)
-                    "Hoy nai. Manually Settings > Reset options theke koro."
-                else
-                    "Hoy nai. Manually Storage > Clear data chapo."
+                val msg = when (mode) {
+                    MODE_RESET_NETWORK -> "Hoy nai. Manually Settings > Reset options theke koro."
+                    MODE_UPLOAD_IMAGE -> "Image auto-select hoy nai. Manually file-picker theke '$UPLOAD_FILE_NAME' select koro."
+                    else -> "Hoy nai. Manually Storage > Clear data chapo."
+                }
                 finishJob(false, msg)
                 return
             }
@@ -111,7 +134,11 @@ class AutoClearService : AccessibilityService() {
             // karon kichu phone-e confirm dialog ta alada package (jemon MIUI
             // security center) theke ashe, "settings" word thake na.
             if (root != null) {
-                if (mode == MODE_RESET_NETWORK) processReset(root) else process(root)
+                when (mode) {
+                    MODE_RESET_NETWORK -> processReset(root)
+                    MODE_UPLOAD_IMAGE -> processUpload(root)
+                    else -> process(root)
+                }
             }
             if (jobActive) handler.postDelayed(this, TICK_MS)
         }
@@ -149,6 +176,16 @@ class AutoClearService : AccessibilityService() {
         deadline = System.currentTimeMillis() + RESET_TIMEOUT_MS
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 700)
+    }
+
+    fun beginImageUpload() {
+        mode = MODE_UPLOAD_IMAGE
+        pkg = null
+        jobActive = true
+        uploadFileClicked = false
+        deadline = System.currentTimeMillis() + UPLOAD_TIMEOUT_MS
+        handler.removeCallbacks(tick)
+        handler.postDelayed(tick, 400)
     }
 
     private fun process(root: AccessibilityNodeInfo) {
@@ -191,6 +228,22 @@ class AutoClearService : AccessibilityService() {
         if (resetStep == RESET_STEP_ENTRY && clickWords(root, RESET_ENTRY_WORDS, exact = true)) {
             return
         }
+    }
+
+    private fun processUpload(root: AccessibilityNodeInfo) {
+        if (uploadFileClicked) {
+            if (clickWords(root, UPLOAD_CONFIRM_WORDS, exact = true)) {
+                finishJob(true, "Image ta select hoye geche")
+            }
+            return
+        }
+
+        if (clickWords(root, listOf(UPLOAD_FILE_NAME), exact = true)) {
+            uploadFileClicked = true
+            return
+        }
+
+        clickWords(root, UPLOAD_TAB_WORDS, exact = false)
     }
 
     private fun clickWords(root: AccessibilityNodeInfo, words: List<String>, exact: Boolean): Boolean {
