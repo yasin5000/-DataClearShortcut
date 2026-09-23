@@ -136,7 +136,9 @@ class FloatingToolbarService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START
@@ -197,6 +199,8 @@ class FloatingToolbarService : Service() {
         val openBtn = styledButton("↗  Open")
         val plusBtn = styledButton("＋  Add App")
         val resetBtn = styledButton("↺  Reset", Color.parseColor("#EF6C00"))
+        val uploadEnabled = prefs.getBoolean("upload_enabled", false)
+        val uploadBtn = if (uploadEnabled) styledButton("⇪  Upload", Color.parseColor("#00897B")) else null
 
         val extras = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -220,6 +224,12 @@ class FloatingToolbarService : Service() {
             resetBtn,
             LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(2) }
         )
+        if (uploadBtn != null) {
+            panel.addView(
+                uploadBtn,
+                LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(2) }
+            )
+        }
         panel.addView(extras, LinearLayout.LayoutParams(-1, -2))
 
         val startCollapsed = prefs.getBoolean("toolbar_collapsed", false)
@@ -236,6 +246,17 @@ class FloatingToolbarService : Service() {
             params.x = if (docked) resources.displayMetrics.widthPixels - w else 0
             windowManager.updateViewLayout(container, params)
             prefs.edit().putInt("float_x", params.x).apply()
+        }
+
+        // Toolbar-er baire display-r jekhanei tach korle panel ta auto-hide hoye jabe
+        container.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_OUTSIDE && panel.visibility == View.VISIBLE) {
+                panel.visibility = View.GONE
+                toggleTab.text = "›"
+                prefs.edit().putBoolean("toolbar_collapsed", true).apply()
+                snapToEdge(true)
+            }
+            false
         }
 
         // Sudhu grip-e touch kore drag kora jabe
@@ -291,6 +312,9 @@ class FloatingToolbarService : Service() {
         }
         resetBtn.setOnClickListener {
             ClearHelper.resetNetworkAuto(this)
+        }
+        uploadBtn?.setOnClickListener {
+            ClearHelper.autoUploadImage(this)
         }
         toggleTab.setOnClickListener {
             val nowVisible = panel.visibility == View.VISIBLE
