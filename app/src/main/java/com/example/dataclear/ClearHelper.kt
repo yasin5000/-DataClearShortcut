@@ -46,6 +46,22 @@ object ClearHelper {
         }
     }
 
+    // File-picker (jemon Chrome-er upload dialog) e age theke bache rakha
+    // image ta auto-select kore. Floating toolbar-er "Upload" button ei call korbe;
+    // eta kaj korbe tokhoni jokhon user nijei kono website-e upload box-e tap kore
+    // Android-er file-chooser khule rekheche.
+    fun autoUploadImage(context: Context) {
+        if (AutoClearService.instance == null) {
+            Toast.makeText(context, "Age Accessibility-te 'Data Clear Auto' on koro", Toast.LENGTH_LONG).show()
+            context.startActivity(
+                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            return
+        }
+        AutoClearService.startImageUpload()
+    }
+
     fun openAppInfo(context: Context, pkg: String) {
         try {
             context.startActivity(
